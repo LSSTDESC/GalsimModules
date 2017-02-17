@@ -21,10 +21,10 @@ gal:
                     eta2: { type: RandomGaussian, sigma: 0.1 }
             -
                 type: Exponential
-                half_light_radius: '@gal.items.0.half_light_radius'
+                half_light_radius: '@gal.items.0.items.0.half_light_radius'
                 flux: 
                     type: Eval
-                    str: 'smooth_frac * (1. - @gal.items.0.flux)'
+                    str: 'smooth_frac * (1. - @gal.items.0.items.0.flux)'
                     fsmooth_frac: { type: Random, min: 0, max: 1 }
                 ellip:
                     type: Eta1Eta2
@@ -33,9 +33,9 @@ gal:
             -
                 type: RandomWalk
                 npoints: 20
-                half_light_radius: '@gal.items.0.half_light_radius'
+                half_light_radius: '@gal.items.0.items.0.half_light_radius'
                 # (relative) flux is 1 - the sum of the other two.
-                ellip: '@gal.items.1.ellip'
+                ellip: '@gal.items.0.items.1.ellip'
         flux:
             type: CosmosFlux
 
@@ -47,7 +47,8 @@ gal:
         type: Gaussian
         sigma: 1.e-6
         flux: 100
-    index: { type: RandomBinomial, p: 0.1 }  # 10% are stars
+    #index: { type: RandomBinomial, p: 0.1 }  # 10% are stars
+    index: { type: Catalog, col: 'is_star' }
 
 
 image:
@@ -84,7 +85,7 @@ psf:
     beta: 2.5
     ellip:
         type: PowerSpectrumShear
-    fwhm: '$r_mean + r_a * (focal_r/focal_rmax)**2'
+    fwhm: '$fwhm_central + fwhm_a * (focal_r/focal_rmax)**2'
 
 
 meta_params:
@@ -93,8 +94,8 @@ meta_params:
     # use with the FocalPlane output type.
     # Variable names here are arbitrary, and will be evaluated once at the start of each
     # focal plane.  The values can be used by the psf field in eval statements.
-    r_mean: { type: LogNormal, mean: 0.9, sigma: 0.1 }
-    r_a: { type: LogNormal, sigma: 0.1 }
+    fwhm_central: { type: LogNormal, mean: 0.9, sigma: 0.1 }
+    fwhm_a: { type: LogNormal, mean: 0.1, sigma: 0.1 }
     sky: { type: Random, min: 900, max: 1200 }
 
 output:
@@ -106,7 +107,7 @@ output:
             type: FormattedStr
             format: "DECam_00154912_%02d.fits.fz"
             items:
-            - "$chip_num"
+            - "$chip_num + 1"
 
     # If this field is present, get the xsize, ysize from a reference FITS file for each chip.
     # If not present, the image field should set xsize, ysize (which can depend on chip_num).
@@ -116,7 +117,7 @@ output:
             type: FormattedStr
             format: "DECam_00154912_%02d.fits.fz"
             items:
-            - "$chip_num"
+            - "$chip_num + 1"
 
     # These are optional.  If given, they will recenter the pointing of the telescope to a
     # new ra, dec.  The relative WCS information will be taken from the reference wcs.
@@ -155,7 +156,7 @@ output:
         format: "BDK_example_%03d_%03d.fits"
         items:
         - "$file_num"
-        - "$chip_num"
+        - "$chip_num + 1"
 
     truth:
         file_name :
@@ -163,7 +164,7 @@ output:
             format: "BDK_example_%03d_%03d_truth.fits"
             items:
             - "$file_num"
-            - "$chip_num"
+            - "$chip_num + 1"
 
         columns:
             num: obj_num
