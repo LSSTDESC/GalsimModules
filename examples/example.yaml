@@ -1,0 +1,182 @@
+
+modules:
+    galsim_extra
+
+gal:
+    type: List
+    items:
+    -  # Galaxies:
+        type: Sum
+        items:
+            -
+                type: DeVaucouleurs
+                half_light_radius: 
+                    type: CosmosR50
+                flux: { type: Random, min: 0, max: 1 }
+                ellip:
+                    type: Eta1Eta2
+                    eta1: { type: RandomGaussian, sigma: 0.1 }
+                    eta2: { type: RandomGaussian, sigma: 0.1 }
+            -
+                type: Exponential
+                half_light_radius: '@gal.items.0.half_light_radius'
+                flux: 
+                    type: Eval
+                    str: 'smooth_frac * (1. - @gal.items.0.flux)'
+                    fsmooth_frac: { type: Random, min: 0, max: 1 }
+                ellip:
+                    type: Eta1Eta2
+                    eta1: { type: RandomGaussian, sigma: 0.1 }
+                    eta2: { type: RandomGaussian, sigma: 0.1 }
+            -
+                type: RandomWalk
+                npoints: 20
+                half_light_radius: '@gal.items.0.half_light_radius'
+                # (relative) flux is 1 - the sum of the other two.
+                ellip: '@gal.items.1.ellip'
+        flux:
+            type: CosmosFlux
+
+        shear:
+            type: E1E2
+            e1: 0.02
+            e2: 0.
+    -  # Stars:
+        type: Gaussian
+        sigma: 1.e-6
+        flux: 100
+    index: { type: RandomBinomial, p: 0.1 }  # 10% are stars
+
+
+image:
+    type: Scattered
+
+    sky_level: "$sky"   # From meta_params
+    noise:
+        type: Poisson
+
+    random_seed: 8675309
+
+input:
+    # Use analytic galaxies with size and flux parameters that match the distribution seen
+    # in the COSMOS galaxies.
+    cosmos_sampler:
+        min_r50: 0.15
+        max_r50: 1.0
+        min_flux: 2.5
+        max_flux: 100
+
+    power_spectrum: 
+        e_power_function: 
+            type: Eval
+            str: '(k**2 + (1./L0)**2)**(-11./6.)'
+            fL0: 180.  # Catherine says 3 armin is a good choice here.
+            units: arcsec
+        b_power_function: # Same thing.  E=B here.
+            type: Eval
+            str: '(k**2 + (1./L0)**2)**(-11./6.)'
+            fL0: 180.
+
+psf:
+    type: Moffat
+    beta: 2.5
+    ellip:
+        type: PowerSpectrumShear
+    fwhm: '$r_mean + r_a * (focal_r/focal_rmax)**2'
+
+
+meta_params:
+    # This field has information *about* the PSF, which will be used by the psf field to
+    # generate the specific PSFs at the location of each galaxy.  This is a custom field for
+    # use with the FocalPlane output type.
+    # Variable names here are arbitrary, and will be evaluated once at the start of each
+    # focal plane.  The values can be used by the psf field in eval statements.
+    r_mean: { type: LogNormal, mean: 0.9, sigma: 0.1 }
+    r_a: { type: LogNormal, sigma: 0.1 }
+    sky: { type: Random, min: 900, max: 1200 }
+
+output:
+    type: FocalPlane
+    reference_wcs: 
+        type: Fits
+        dir: "/Users/Mike/GalSim/examples/des/des_data/"
+        file_name:
+            type: FormattedStr
+            format: "DECam_00154912_%02d.fits.fz"
+            items:
+            - "$chip_num"
+
+    # If this field is present, get the xsize, ysize from a reference FITS file for each chip.
+    # If not present, the image field should set xsize, ysize (which can depend on chip_num).
+    reference_image:
+        dir: "/Users/Mike/GalSim/examples/des/des_data/"
+        file_name:
+            type: FormattedStr
+            format: "DECam_00154912_%02d.fits.fz"
+            items:
+            - "$chip_num"
+
+    # These are optional.  If given, they will recenter the pointing of the telescope to a
+    # new ra, dec.  The relative WCS information will be taken from the reference wcs.
+    #pointing_ra:
+    #pointing_dec:
+
+    # These are focal plane positions of the objects (stars and galaxies)
+    world_pos:
+        type: XY
+        # Include objects whose centers are off the edge of the image.
+        x: { type: Random, min: "$focal_xmin-64", max: "$focal_xmax+64" }
+        y: { type: Random, min: "$focal_ymin-64", max: "$focal_ymax+64" }
+
+    # The number of objects across the full focal plane.
+    nobjects: 6200
+
+    nchips: 62
+    nfiles: 1
+
+    # The FocalPlane type has several different output styles you can choose from:
+    #
+    #    Separate:  Use a separate fits file for each CCD image.
+    #               The image will be in the hdu 0
+    #               The weight map will be in hdu 1
+    #               The badpix mask will be in hdu 2
+    #
+    #    MultiHDU:  Output a single large fits file with all the images
+    #               The images will be in hdu 0, 3, 6, 9, etc.
+    #               Weight maps will be in hdu 1, 4, 7, 10, etc.
+    #               Badpix masks will be in hdu 2, 5, 8, 11, etc.
+    output_style: 'Separate'
+
+    dir: output
+    file_name:
+        type: FormattedStr
+        format: "BDK_example_%03d_%03d.fits"
+        items:
+        - "$file_num"
+        - "$chip_num"
+
+    truth:
+        file_name :
+            type: FormattedStr
+            format: "BDK_example_%03d_%03d_truth.fits"
+            items:
+            - "$file_num"
+            - "$chip_num"
+
+        columns:
+            num: obj_num
+            x: "$image_pos.x"
+            y: "$image_pos.y"
+
+            psf_fwhm: psf.fwhm
+            psf_e1: '$(@psf.ellip).e1'
+            psf_e2: '$(@psf.ellip).e2'
+
+            gal_hlr: gal.items.0.half_light_radius
+            gal_flux: gal.flux
+            bulge_eta1: "$(@gal.items.0.ellip.eta1)"
+            bulge_eta2: "$(@gal.items.0.ellip.eta2)"
+            disk_eta1: "$(@gal.items.1.ellip.eta1)"
+            disk_eta2: "$(@gal.items.1.ellip.eta2)"
+            gal_g1: "$(@stamp.shear).g1"
+            gal_g2: "$(@stamp.shear).g2"
