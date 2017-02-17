@@ -1,6 +1,8 @@
 
 modules:
-    galsim_extra
+    - galsim_extra
+
+    - galsim_lsst
 
 gal:
     type: List
