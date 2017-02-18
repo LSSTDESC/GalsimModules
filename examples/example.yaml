@@ -50,6 +50,9 @@ gal:
     #index: { type: RandomBinomial, p: 0.1 }  # 10% are stars
     index: { type: Catalog, col: 'is_star' }
 
+    ra: { type: Random, min: pointing_minra, max: pointing_maxra }
+    dec: { type: Random, min: pointing_mindec, max: pointing_maxdec }
+
 
 image:
     type: Scattered
@@ -59,6 +62,9 @@ image:
         type: Poisson
 
     random_seed: 8675309
+
+    # The number of objects across the full focal plane.
+    nobjects: 620
 
 input:
     # Use analytic galaxies with size and flux parameters that match the distribution seen
@@ -70,15 +76,10 @@ input:
         max_flux: 100
 
     power_spectrum: 
-        e_power_function: 
-            type: Eval
-            str: '(k**2 + (1./L0)**2)**(-11./6.)'
-            fL0: 180.  # Catherine says 3 armin is a good choice here.
-            units: arcsec
-        b_power_function: # Same thing.  E=B here.
-            type: Eval
-            str: '(k**2 + (1./L0)**2)**(-11./6.)'
-            fL0: 180.
+        e_power_function: '(k**2 + (1./180.)**2)**(-11./6.)'
+        # L0 = 180 = 3 arcmin, which Catherine says is a good choice here.
+        b_power_function: '(k**2 + (1./180.)**2)**(-11./6.)'  # Same thing, E = B
+        units: arcsec
 
 psf:
     type: Moffat
@@ -124,17 +125,7 @@ output:
     #pointing_ra:
     #pointing_dec:
 
-    # These are focal plane positions of the objects (stars and galaxies)
-    world_pos:
-        type: XY
-        # Include objects whose centers are off the edge of the image.
-        x: { type: Random, min: "$focal_xmin-64", max: "$focal_xmax+64" }
-        y: { type: Random, min: "$focal_ymin-64", max: "$focal_ymax+64" }
-
-    # The number of objects across the full focal plane.
-    nobjects: 6200
-
-    nchips: 62
+    nchips: 2
     nfiles: 1
 
     # The FocalPlane type has several different output styles you can choose from:
@@ -148,23 +139,21 @@ output:
     #               The images will be in hdu 0, 3, 6, 9, etc.
     #               Weight maps will be in hdu 1, 4, 7, 10, etc.
     #               Badpix masks will be in hdu 2, 5, 8, 11, etc.
-    output_style: 'Separate'
+    output_style: 'MultiHDU'
 
     dir: output
     file_name:
         type: FormattedStr
-        format: "BDK_example_%03d_%03d.fits"
+        format: "BDK_example_%03d.fits"
         items:
         - "$file_num"
-        - "$chip_num + 1"
 
     truth:
         file_name :
             type: FormattedStr
-            format: "BDK_example_%03d_%03d_truth.fits"
+            format: "BDK_example_%03d_truth.fits"
             items:
             - "$file_num"
-            - "$chip_num + 1"
 
         columns:
             num: obj_num
